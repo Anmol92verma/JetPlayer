@@ -5,8 +5,10 @@ import androidx.compose.animation.core.FloatSpringSpec
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.calculateTargetValue
 import androidx.compose.animation.splineBasedDecay
+import androidx.compose.foundation.ScrollState.Companion.Saver
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.verticalDrag
+import androidx.compose.foundation.lazy.LazyListState.Companion.Saver
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.saveable.Saver
@@ -20,21 +22,19 @@ import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
+import dev.baseio.jetplayer.ui.CircularListStateImpl.Companion.Saver
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
-
-const val totalItemsOnScreen = 5
-
-/**
- * Reference from https://fvilarino.medium.com/creating-a-circular-list-in-jetpack-compose-29924c70e3e0
- */
 data class CircularListConfig(
-  val fullDiscHeight: Float = 0f,
+  val contentHeight: Float = 0f,
+  val numItems: Int = 0,
+  val visibleItems: Int = 0,
   val circularFraction: Float = 1f,
+  val overshootItems: Int = 0,
 )
 
 @Stable
@@ -55,38 +55,38 @@ class CircularListStateImpl(
 ) : CircularListState {
 
   private val animatable = Animatable(currentOffset)
-  private var albumHeight = 0f
+  private var itemHeight = 0f
   private var config = CircularListConfig()
   private var initialOffset = 0f
   private val decayAnimationSpec = FloatSpringSpec(
-    dampingRatio = Spring.DampingRatioMediumBouncy,
+    dampingRatio = Spring.DampingRatioLowBouncy,
     stiffness = Spring.StiffnessLow,
   )
 
   private val minOffset: Float
-    get() = -(totalItemsOnScreen - 1) * albumHeight
+    get() = -(config.numItems - 1) * itemHeight
 
   override val verticalOffset: Float
     get() = animatable.value
 
   override val firstVisibleItem: Int
-    get() = ((-verticalOffset - initialOffset) / albumHeight).toInt().coerceAtLeast(0)
+    get() = ((-verticalOffset - initialOffset) / itemHeight).toInt().coerceAtLeast(0)
 
   override val lastVisibleItem: Int
-    get() = (((-verticalOffset - initialOffset) / albumHeight).toInt() + totalItemsOnScreen)
-      .coerceAtMost(totalItemsOnScreen - 1)
+    get() = (((-verticalOffset - initialOffset) / itemHeight).toInt() + config.visibleItems)
+      .coerceAtMost(config.numItems - 1)
 
   override suspend fun snapTo(value: Float) {
-    val minOvershoot = -(totalItemsOnScreen - 1) * albumHeight
-    val maxOvershoot =  albumHeight
+    val minOvershoot = -(config.numItems - 1 + config.overshootItems) * itemHeight
+    val maxOvershoot = config.overshootItems * itemHeight
     animatable.snapTo(value.coerceIn(minOvershoot, maxOvershoot))
   }
 
   override suspend fun decayTo(velocity: Float, value: Float) {
     val constrainedValue = value.coerceIn(minOffset, 0f).absoluteValue
-    val remainder = (constrainedValue / albumHeight) - (constrainedValue / albumHeight).toInt()
+    val remainder = (constrainedValue / itemHeight) - (constrainedValue / itemHeight).toInt()
     val extra = if (remainder <= 0.5f) 0 else 1
-    val target = ((constrainedValue / albumHeight).toInt() + extra) * albumHeight
+    val target =((constrainedValue / itemHeight).toInt() + extra) * itemHeight
     animatable.animateTo(
       targetValue = -target,
       initialVelocity = velocity,
@@ -100,16 +100,16 @@ class CircularListStateImpl(
 
   override fun setup(config: CircularListConfig) {
     this.config = config
-    albumHeight = (config.fullDiscHeight / totalItemsOnScreen)
-    initialOffset = (config.fullDiscHeight - albumHeight) / 2f
+    itemHeight = config.contentHeight / config.visibleItems
+    initialOffset = (config.contentHeight - itemHeight) / 2f
   }
 
   override fun offsetFor(index: Int): IntOffset {
-    val radius = config.fullDiscHeight / 2f
-    val maxOffset = radius + albumHeight / 2f
-    val y = (verticalOffset + initialOffset + index * albumHeight .plus(80))
+    val maxOffset = config.contentHeight / 2f + itemHeight / 2f
+    val y = (verticalOffset + initialOffset + index * itemHeight)
     val deltaFromCenter = (y - initialOffset)
-    val scaledY = deltaFromCenter.absoluteValue * (radius.div(maxOffset))
+    val radius = config.contentHeight / 2f
+    val scaledY = deltaFromCenter.absoluteValue * (config.contentHeight / 2f / maxOffset)
     val x = if (scaledY < radius) {
       sqrt((radius * radius - scaledY * scaledY))
     } else {
@@ -128,7 +128,7 @@ class CircularListStateImpl(
     other as CircularListStateImpl
 
     if (animatable.value != other.animatable.value) return false
-    if (albumHeight != other.albumHeight) return false
+    if (itemHeight != other.itemHeight) return false
     if (config != other.config) return false
     if (initialOffset != other.initialOffset) return false
     if (decayAnimationSpec != other.decayAnimationSpec) return false
@@ -138,7 +138,7 @@ class CircularListStateImpl(
 
   override fun hashCode(): Int {
     var result = animatable.value.hashCode()
-    result = 31 * result + albumHeight.hashCode()
+    result = 31 * result + itemHeight.hashCode()
     result = 31 * result + config.hashCode()
     result = 31 * result + initialOffset.hashCode()
     result = 31 * result + decayAnimationSpec.hashCode()
@@ -165,36 +165,37 @@ fun rememberCircularListState(): CircularListState {
 
 @Composable
 fun CircularList(
+  visibleItems: Int,
   modifier: Modifier = Modifier,
   state: CircularListState = rememberCircularListState(),
-  circularFraction: Float = -1f,
+  circularFraction: Float = 1f,
+  overshootItems: Int = 3,
   content: @Composable () -> Unit,
 ) {
+  check(visibleItems > 0) { "Visible items must be positive" }
+
   Layout(
-    modifier = modifier
-      .clipToBounds()
-      .drag(state),
+    modifier = modifier.clipToBounds().drag(state),
     content = content,
   ) { measurables, constraints ->
-    val consMaxHeight = constraints.maxHeight
-    val conMaxWidth = constraints.maxWidth
-
-    val itemHeight = (consMaxHeight / totalItemsOnScreen)
-
-    val itemConstraints = Constraints.fixed(width = conMaxWidth, height = itemHeight)
-    val placeable = measurables.map { measurable -> measurable.measure(itemConstraints) }
+    val itemHeight = constraints.maxHeight / visibleItems
+    val itemConstraints = Constraints.fixed(width = constraints.maxWidth, height = itemHeight)
+    val placeables = measurables.map { measurable -> measurable.measure(itemConstraints) }
     state.setup(
       CircularListConfig(
-        fullDiscHeight = consMaxHeight.toFloat(),
+        contentHeight = constraints.maxHeight.toFloat(),
+        numItems = placeables.size,
+        visibleItems = visibleItems,
         circularFraction = circularFraction,
+        overshootItems = overshootItems,
       )
     )
     layout(
-      width = conMaxWidth,
-      height = consMaxHeight,
+      width = constraints.maxWidth,
+      height = constraints.maxHeight,
     ) {
       for (i in state.firstVisibleItem..state.lastVisibleItem) {
-        placeable[i].placeRelative(state.offsetFor(i))
+        placeables[i].placeRelative(state.offsetFor(i))
       }
     }
   }

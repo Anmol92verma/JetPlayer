@@ -81,8 +81,9 @@ fun AlbumSongsList() {
   CircularList(
     modifier = Modifier.fillMaxSize(),
     circularFraction = -0.75f,
+    visibleItems = 5
   ) {
-    repeat(10) {
+    repeat(40) {
       Album()
     }
   }
