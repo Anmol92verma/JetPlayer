@@ -38,9 +38,7 @@ fun GramophoneDisc() {
   val screenWidth = LocalConfiguration.current.screenWidthDp.dp
   val gramophoneSize = screenHeight / 3
 
-  val centerOffset = DpOffset(screenWidth.div(2), screenHeight.div(2))
-
-  val xOffset = screenWidth.minus(gramophoneSize/2)
+  val xOffset = screenWidth.minus(gramophoneSize / 2)
   val yOffset = screenHeight.minus(gramophoneSize.div(0.55f))
 
 
@@ -95,7 +93,7 @@ fun Album() {
   GlideImage(
     imageModel = "https://wpimg.pixelied.com/blog/wp-content/uploads/2021/06/15134504/Spotify-Cover-Art-with-Text-Aligned-480x480.png",
     contentDescription = null,
-    modifier = Modifier.border(2.dp,Color.White),
+    modifier = Modifier.border(2.dp, Color.White),
   )
 }
 
