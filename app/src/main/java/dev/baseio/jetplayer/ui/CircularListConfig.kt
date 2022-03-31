@@ -100,23 +100,25 @@ class CircularListStateImpl(
 
   override fun setup(config: CircularListConfig) {
     this.config = config
-    itemHeight = config.contentHeight / config.visibleItems
+    val eachPartHeight = config.contentHeight / config.visibleItems
+    itemHeight = eachPartHeight
     initialOffset = (config.contentHeight - itemHeight) / 2f
   }
 
   override fun offsetFor(index: Int): IntOffset {
-    val maxOffset = config.contentHeight / 2f + itemHeight / 2f
+    val radius = config.contentHeight / 2f
+    val maxOffset = radius + itemHeight / 2f
     val y = (verticalOffset + initialOffset + index * itemHeight)
     val deltaFromCenter = (y - initialOffset)
-    val radius = config.contentHeight / 2f
-    val scaledY = deltaFromCenter.absoluteValue * (config.contentHeight / 2f / maxOffset)
-    val x = if (scaledY < radius) {
+    val scaledY = deltaFromCenter.absoluteValue * (radius / maxOffset)
+    var x = if (scaledY < radius) {
       sqrt((radius * radius - scaledY * scaledY))
     } else {
       0f
     }
+    x *= config.circularFraction
     return IntOffset(
-      x = (x * config.circularFraction).roundToInt(),
+      x = x.roundToInt(),
       y = y.roundToInt()
     )
   }
@@ -178,8 +180,8 @@ fun CircularList(
     modifier = modifier.clipToBounds().drag(state),
     content = content,
   ) { measurables, constraints ->
-    val itemHeight = constraints.maxHeight / visibleItems
-    val itemConstraints = Constraints.fixed(width = constraints.maxWidth, height = itemHeight)
+    val itemHeight = constraints.maxHeight / visibleItems - 20 * visibleItems
+    val itemConstraints = Constraints.fixed(width = itemHeight, height = itemHeight)
     val placeables = measurables.map { measurable -> measurable.measure(itemConstraints) }
     state.setup(
       CircularListConfig(

@@ -2,27 +2,23 @@ package dev.baseio.jetplayer
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.*
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.skydoves.landscapist.glide.GlideImage
 import dev.baseio.jetplayer.ui.CircularList
 import dev.baseio.jetplayer.ui.theme.JetPlayerTheme
+import kotlin.math.min
 
 
 val discBackground = Color(229, 236, 229)
@@ -33,37 +29,24 @@ val innerDisc = Color(52, 46, 45)
 
 @Composable
 fun GramophoneDisc() {
+  val screenHeight = LocalConfiguration.current.screenHeightDp
+  val screenWidth = LocalConfiguration.current.screenWidthDp
+  val gramophoneSize = min(screenWidth, screenHeight)
+  val radius = gramophoneSize.div(2)
 
-  val screenHeight = LocalConfiguration.current.screenHeightDp.dp
-  val screenWidth = LocalConfiguration.current.screenWidthDp.dp
-  val gramophoneSize = screenHeight / 3
+  val y = screenHeight.div(2).minus(radius)
+  val x = 0.minus(radius)
 
-  val xOffset = screenWidth.minus(gramophoneSize / 2)
-  val yOffset = screenHeight.minus(gramophoneSize.div(0.55f))
-
-
-  val infiniteRotate = rememberInfiniteTransition()
-  val rotateAnimation by infiniteRotate.animateFloat(
-    initialValue = 0f,
-    targetValue = 360f,
-    animationSpec = InfiniteRepeatableSpec(
-      tween(durationMillis = 6000, easing = LinearEasing),
-      repeatMode = RepeatMode.Restart
-    )
-  )
+  val offsetDisc = Offset(x.toFloat(), y.toFloat())
 
   Box(
-    modifier = Modifier
+    modifier = Modifier.fillMaxSize()
       .background(discBackground)
   ) {
-
-
     AlbumArtBackground()
     BlurredAlbumArt()
-    OuterRing(xOffset, yOffset, gramophoneSize, rotateAnimation)
-    InnerRing(xOffset, yOffset, gramophoneSize, rotateAnimation)
-    AlbumSongsList()
-
+    Disc(gramophoneSize, offsetDisc)
+    AlbumSongsList(gramophoneSize,offsetDisc)
   }
 }
 
@@ -77,13 +60,18 @@ private fun AlbumArtBackground() {
 }
 
 @Composable
-fun AlbumSongsList() {
+fun AlbumSongsList(gramophoneSize: Int, offsetDisc: Offset) {
   CircularList(
-    modifier = Modifier.fillMaxSize(),
-    circularFraction = -0.75f,
-    visibleItems = 5
+    modifier = Modifier
+      .size(gramophoneSize.dp)
+      .offset(
+        y = offsetDisc.y.dp,
+        x = offsetDisc.x.div(2.4).dp
+      ),
+    circularFraction = 1f,
+    visibleItems = 5,
   ) {
-    repeat(40) {
+    repeat(10) {
       Album()
     }
   }
@@ -94,7 +82,6 @@ fun Album() {
   GlideImage(
     imageModel = "https://wpimg.pixelied.com/blog/wp-content/uploads/2021/06/15134504/Spotify-Cover-Art-with-Text-Aligned-480x480.png",
     contentDescription = null,
-    modifier = Modifier.border(2.dp, Color.White),
   )
 }
 
@@ -111,63 +98,69 @@ private fun BlurredAlbumArt() {
 
 @Composable
 private fun InnerRing(
-  xOffset: Dp,
-  yOffset: Dp,
-  gramophoneSize: Dp,
-  rotateAnimation: Float
+  modifier: Modifier,
 ) {
   GlideImage(
     imageModel = "https://wpimg.pixelied.com/blog/wp-content/uploads/2021/06/15134504/Spotify-Cover-Art-with-Text-Aligned-480x480.png",
-    contentDescription = null, modifier = Modifier
-      .width(gramophoneSize)
-      .height(gramophoneSize)
-      .offset(x = xOffset, yOffset)
+    contentDescription = null, modifier = modifier
       .clip(
         shape = CircleShape
-      )
-      .rotate(rotateAnimation), previewPlaceholder = R.drawable.ic_launcher_background
+      ), previewPlaceholder = R.drawable.ic_launcher_background
   )
 }
 
 @Composable
-private fun OuterRing(
-  xOffset: Dp,
-  yOffset: Dp,
-  gramophoneSize: Dp,
-  rotateAnimation: Float
+private fun Disc(
+  gramophoneSize: Int,
+  offsetDisc: Offset
 ) {
-  Surface(
-    modifier = Modifier
-      .offset(x = xOffset, y = yOffset)
-      .size(gramophoneSize)
-      .scale(2.3f),
-    elevation = 8.dp,
-    shape = CircleShape,
-    color = Color.Transparent,
-    contentColor = Color.Transparent
-  ) {
-    Box(
-      modifier = Modifier
-        .background(
-          Brush.radialGradient(
-            colorStops = arrayOf(
-              Pair(0f, innerDisc.copy(alpha = 0.8f)),
-              Pair(0.2f, innerDisc.copy(alpha = 0.5f)),
-              Pair(0.4f, innerDisc.copy(alpha = 0.6f)),
-              Pair(0.6f, innerDisc.copy(alpha = 0.8f)),
-              Pair(0.8f, innerDisc.copy(alpha = 0.95f)),
-              Pair(1f, innerDisc.copy(alpha = 1f)),
-            )
-          ),
-          shape = CircleShape
-        )
-        .rotate(rotateAnimation)
+  val infiniteRotate = rememberInfiniteTransition()
+  val rotateAnimation by infiniteRotate.animateFloat(
+    initialValue = 0f,
+    targetValue = 360f,
+    animationSpec = InfiniteRepeatableSpec(
+      tween(durationMillis = 6000, easing = LinearEasing),
+      repeatMode = RepeatMode.Restart
+    )
+  )
 
+  Box(
+    modifier = Modifier
+      .offset(
+        y = offsetDisc.y.dp,
+        x = offsetDisc.x.dp
+      )
+      .size(gramophoneSize.dp)
+      .rotate(rotateAnimation)
+      .background(
+        discBlackGradient(), shape = CircleShape
+      )
+  ) {
+    InnerRing(
+      Modifier
+        .size(gramophoneSize.dp.div(2))
+        .align(Alignment.Center)
     )
   }
 
 
 }
+
+@Composable
+private fun discBlackGradient() = Brush.radialGradient(
+  colors = listOf(
+    innerDisc,
+    innerDisc.copy(alpha = 0.8f),
+    innerDisc.copy(alpha = 0.7f),
+    innerDisc.copy(alpha = 0.6f),
+    innerDisc,
+    innerDisc,
+    innerDisc.copy(alpha = 0.6f),
+    innerDisc.copy(alpha = 0.7f),
+    innerDisc.copy(alpha = 0.8f),
+    innerDisc,
+  )
+)
 
 @Preview()
 @Composable
